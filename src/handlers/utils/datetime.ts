@@ -28,46 +28,42 @@ export function convertToRFC3339(datetime: string, fallbackTimezone: string): st
         // Already has timezone, use as-is
         return datetime;
     } else {
-        // Timezone-naive, convert to timezone-aware format
+        // Timezone-naive, need to interpret the datetime as being in the target timezone
         try {
-            const date = new Date(datetime);
-            // Use Intl.DateTimeFormat to convert to the target timezone
-            const options: Intl.DateTimeFormatOptions = {
-                timeZone: fallbackTimezone,
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                timeZoneName: 'longOffset'
-            };
-            
-            const formatter = new Intl.DateTimeFormat('sv-SE', options);
-            const parts = formatter.formatToParts(date);
-            
-            // Extract parts
-            const year = parts.find(p => p.type === 'year')?.value;
-            const month = parts.find(p => p.type === 'month')?.value;
-            const day = parts.find(p => p.type === 'day')?.value;
-            const hour = parts.find(p => p.type === 'hour')?.value;
-            const minute = parts.find(p => p.type === 'minute')?.value;
-            const second = parts.find(p => p.type === 'second')?.value;
-            const timeZoneName = parts.find(p => p.type === 'timeZoneName')?.value;
-            
-            if (year && month && day && hour && minute && second && timeZoneName) {
-                // Convert timezone name to offset format (e.g., "GMT-08:00" to "-08:00")
-                const offsetMatch = timeZoneName.match(/GMT([+-]\d{2}:\d{2})/);
-                const offset = offsetMatch ? offsetMatch[1] : 'Z';
-                return `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}`;
+            // Parse the datetime components
+            const match = datetime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+            if (!match) {
+                throw new Error(`Invalid datetime format: ${datetime}`);
             }
+            
+            const [, year, month, day, hour, minute, second] = match;
+            
+            // Create a date object representing this local time in the target timezone
+            // We use the Intl API to get the UTC offset for this timezone at this date/time
+            const testDate = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+            const offsetFormatter = new Intl.DateTimeFormat('en', {
+                timeZone: fallbackTimezone,
+                timeZoneName: 'longOffset'
+            });
+            
+            const offsetParts = offsetFormatter.formatToParts(testDate);
+            const timeZoneName = offsetParts.find(p => p.type === 'timeZoneName')?.value;
+            
+            if (timeZoneName) {
+                // Handle both ASCII minus (-) and Unicode minus (−)
+                const offsetMatch = timeZoneName.match(/GMT([+\-−]\d{2}:\d{2})/);
+                if (offsetMatch) {
+                    const offset = offsetMatch[1].replace('−', '-');
+                    return `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}`;
+                }
+            }
+            
+            // Fallback: append Z for UTC
+            return datetime + 'Z';
         } catch (error) {
             // Fallback: if timezone conversion fails, append Z for UTC
             return datetime + 'Z';
         }
-        
-        // Fallback: append Z for UTC
-        return datetime + 'Z';
     }
 }
 

@@ -263,11 +263,39 @@ class RealClaudeMCPClient implements ClaudeMCPClient {
       };
     }
     
-    return {
+    const claudeSchema = {
       type: 'object' as const,
       properties: mcpSchema.properties || {},
       required: mcpSchema.required || []
     };
+    
+    // Apply ADK compatibility fix for schema types
+    this.fixSchemaTypes(claudeSchema);
+    
+    return claudeSchema;
+  }
+
+  /**
+   * Fix schema type capitalization for ADK compatibility
+   * ADK expects JSON schema with single lowercase types (e.g., "string","object"), not uppercase or arrays.
+   */
+  private fixSchemaTypes(schema: any): void {
+    if (Array.isArray(schema.type)) {
+      // Take the first type (e.g., "object", ignore null)
+      schema.type = schema.type.find((t: string) => t !== 'null') || schema.type[0];
+    }
+    if (typeof schema.type === 'string') {
+      schema.type = schema.type.toLowerCase();
+    }
+
+    if (schema.properties) {
+      for (const key in schema.properties) {
+        this.fixSchemaTypes(schema.properties[key]);
+      }
+    }
+    if (schema.items) {
+      this.fixSchemaTypes(schema.items);
+    }
   }
   
   getPerformanceMetrics() {

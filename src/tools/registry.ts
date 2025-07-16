@@ -276,6 +276,29 @@ interface ToolDefinition {
 
 
 export class ToolRegistry {
+  /**
+   * Fix schema type capitalization for ADK compatibility
+   * ADK expects JSON schema with single lowercase types (e.g., "string","object"), not uppercase or arrays.
+   */
+  private static fixSchemaTypes(schema: any): void {
+    if (Array.isArray(schema.type)) {
+      // Take the first type (e.g., "object", ignore null)
+      schema.type = schema.type.find((t: string) => t !== 'null') || schema.type[0];
+    }
+    if (typeof schema.type === 'string') {
+      schema.type = schema.type.toLowerCase();
+    }
+
+    if (schema.properties) {
+      for (const key in schema.properties) {
+        this.fixSchemaTypes(schema.properties[key]);
+      }
+    }
+    if (schema.items) {
+      this.fixSchemaTypes(schema.items);
+    }
+  }
+
   private static extractSchemaShape(schema: z.ZodType<any>): any {
     const schemaAny = schema as any;
     
@@ -404,7 +427,15 @@ export class ToolRegistry {
 
   static getToolsWithSchemas() {
     return this.tools.map(tool => {
-      const jsonSchema = zodToJsonSchema(tool.schema);
+      const jsonSchema = zodToJsonSchema(tool.schema, {
+        target: "jsonSchema7",
+        strictUnions: false,
+        definitions: {}
+      });
+      
+      // Apply ADK compatibility fix for schema types
+      this.fixSchemaTypes(jsonSchema);
+      
       return {
         name: tool.name,
         description: tool.description,
@@ -421,12 +452,14 @@ export class ToolRegistry {
     ) => Promise<{ content: Array<{ type: "text"; text: string }> }>
   ) {
     for (const tool of this.tools) {
-      // Use the existing registerTool method which handles schema conversion properly
+      // Use Zod shape for MCP SDK compatibility (VS Code, Claude Desktop)
+      const schemaShape = this.extractSchemaShape(tool.schema);
+      
       server.registerTool(
         tool.name,
         {
           description: tool.description,
-          inputSchema: this.extractSchemaShape(tool.schema)
+          inputSchema: schemaShape
         },
         async (args: any) => {
           // Validate input using our Zod schema

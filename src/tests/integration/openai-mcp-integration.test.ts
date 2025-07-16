@@ -311,7 +311,33 @@ class RealOpenAIMCPClient implements OpenAIMCPClient {
       required: mcpSchema.required || []
     };
     
+    // Apply ADK compatibility fix for schema types
+    this.fixSchemaTypes(enhancedSchema);
+    
     return enhancedSchema;
+  }
+
+  /**
+   * Fix schema type capitalization for ADK compatibility
+   * ADK expects JSON schema with single lowercase types (e.g., "string","object"), not uppercase or arrays.
+   */
+  private fixSchemaTypes(schema: any): void {
+    if (Array.isArray(schema.type)) {
+      // Take the first type (e.g., "object", ignore null)
+      schema.type = schema.type.find((t: string) => t !== 'null') || schema.type[0];
+    }
+    if (typeof schema.type === 'string') {
+      schema.type = schema.type.toLowerCase();
+    }
+
+    if (schema.properties) {
+      for (const key in schema.properties) {
+        this.fixSchemaTypes(schema.properties[key]);
+      }
+    }
+    if (schema.items) {
+      this.fixSchemaTypes(schema.items);
+    }
   }
   
   private enhancePropertiesForOpenAI(properties: any): any {

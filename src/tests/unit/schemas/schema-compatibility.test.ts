@@ -42,7 +42,7 @@ describe('Schema Compatibility', () => {
     expect(tools.length).toBeGreaterThan(0);
     
     for (const tool of tools) {
-      const schema = tool.inputSchema;
+      const schema = tool.inputSchema as any;
       
       // All schemas should be objects at the top level
       expect(schema.type).toBe('object');
@@ -92,6 +92,26 @@ describe('Schema Compatibility', () => {
   it('should test OpenAI schema conversion compatibility', () => {
     const tools = ToolRegistry.getToolsWithSchemas();
     
+    // Helper function to fix schema types for ADK compatibility
+    const fixSchemaTypes = (schema: any): void => {
+      if (Array.isArray(schema.type)) {
+        // Take the first type (e.g., "object", ignore null)
+        schema.type = schema.type.find((t: string) => t !== 'null') || schema.type[0];
+      }
+      if (typeof schema.type === 'string') {
+        schema.type = schema.type.toLowerCase();
+      }
+
+      if (schema.properties) {
+        for (const key in schema.properties) {
+          fixSchemaTypes(schema.properties[key]);
+        }
+      }
+      if (schema.items) {
+        fixSchemaTypes(schema.items);
+      }
+    };
+    
     // This mimics the exact conversion logic that would be used by OpenAI integrations
     const convertMCPSchemaToOpenAI = (mcpSchema: any) => {
       if (!mcpSchema) {
@@ -102,11 +122,16 @@ describe('Schema Compatibility', () => {
         };
       }
       
-      return {
+      const openaiSchema = {
         type: 'object',
         properties: mcpSchema.properties || {},
         required: mcpSchema.required || []
       };
+      
+      // Apply ADK compatibility fix for schema types
+      fixSchemaTypes(openaiSchema);
+      
+      return openaiSchema;
     };
 
     const validateOpenAISchema = (schema: any, toolName: string) => {
@@ -160,7 +185,7 @@ describe('Schema Compatibility', () => {
     for (const tool of tools) {
       if (toolsWithEnums.includes(tool.name)) {
         // These tools should exist and be properly typed
-        expect(tool.inputSchema.type).toBe('object');
+        expect((tool.inputSchema as any).type).toBe('object');
       }
     }
   });
@@ -176,7 +201,7 @@ describe('Schema Compatibility', () => {
     for (const tool of tools) {
       if (toolsWithArrays.includes(tool.name)) {
         // These tools should exist and be properly typed
-        expect(tool.inputSchema.type).toBe('object');
+        expect((tool.inputSchema as any).type).toBe('object');
       }
     }
   });

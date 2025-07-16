@@ -300,22 +300,17 @@ export class ToolRegistry {
       '$schema',
       'definitions',
       'additionalProperties',
-      'anyOf',
-      'oneOf',
-      'allOf',
       'not',
       'if',
       'then',
       'else'
     ];
-    
     for (const key of unsupportedKeys) {
       delete schema[key];
     }
 
     // Handle enum values - ensure they're simple arrays
     if (schema.enum && Array.isArray(schema.enum)) {
-      // Keep enum as-is but ensure it's a simple array
       schema.enum = schema.enum.filter((val: any) => typeof val === 'string' || typeof val === 'number');
     }
 
@@ -327,6 +322,23 @@ export class ToolRegistry {
     }
     if (schema.items) {
       this.fixSchemaTypes(schema.items);
+    }
+
+    // Recursively fix anyOf, oneOf, allOf
+    if (Array.isArray(schema.anyOf)) {
+      for (const sub of schema.anyOf) {
+        this.fixSchemaTypes(sub);
+      }
+    }
+    if (Array.isArray(schema.oneOf)) {
+      for (const sub of schema.oneOf) {
+        this.fixSchemaTypes(sub);
+      }
+    }
+    if (Array.isArray(schema.allOf)) {
+      for (const sub of schema.allOf) {
+        this.fixSchemaTypes(sub);
+      }
     }
 
     // Handle patternProperties (convert to properties if possible)

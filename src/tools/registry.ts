@@ -819,18 +819,44 @@ export class ToolRegistry {
       }
       
       // Log registration details for debugging
-      console.log(`[ToolRegistry] Registering ${tool.name} for ADK with NO inputSchema to bypass MCP SDK keyValidator bug`);
+      console.log(`[ToolRegistry] Registering ${tool.name} for ADK with minimal inputSchema for parameter extraction`);
       
+      // Use ultra-minimal Zod schema shapes that might work better with ADK
+      let minimalSchemaShape;
+      if (tool.name === 'list-events') {
+        minimalSchemaShape = {
+          timeMin: z.string().optional(),
+          timeMax: z.string().optional(),
+          calendarId: z.string().optional(),
+          timeZone: z.string().optional()
+        };
+      } else {
+        minimalSchemaShape = {};
+      }
+
       server.registerTool(
         tool.name,
         {
-          description: tool.description
-          // COMPLETELY REMOVE inputSchema to bypass "keyValidator._parse is not a function" MCP SDK bug
+          description: tool.description,
+          inputSchema: minimalSchemaShape  // Ultra-minimal Zod schema shape for parameter extraction
         },
         async (args: any) => {
-          // Skip Zod validation entirely for ALL tools to avoid ANY ADK schema issues
-          // Let the handlerFunction provide defaults and the handlers do their own validation
-          let validatedArgs = args || {};
+          // Manual parameter extraction for ADK compatibility
+          // Extract parameters directly from the raw arguments to ensure they reach the handlerFunction
+          let validatedArgs = {};
+          
+          // For list-events, manually extract the parameters we care about
+          if (tool.name === 'list-events') {
+            validatedArgs = {
+              calendarId: args.calendarId || undefined,
+              timeMin: args.timeMin || undefined,
+              timeMax: args.timeMax || undefined,
+              timeZone: args.timeZone || undefined
+            };
+          } else {
+            // For other tools, pass through all arguments
+            validatedArgs = args || {};
+          }
           
           // Apply any custom handler function preprocessing
           const processedArgs = tool.handlerFunction ? await tool.handlerFunction(validatedArgs) : validatedArgs;

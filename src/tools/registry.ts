@@ -351,17 +351,9 @@ export class ToolRegistry {
       return this.extractSchemaShape(schemaAny._def.schema);
     }
     
-    // Handle regular ZodObject
+    // Handle regular ZodObject - return raw shape for MCP SDK compatibility
     if ('shape' in schemaAny) {
-      const shape = schemaAny.shape;
-      // Apply ADK compatibility fix by converting to JSON Schema and back
-      const jsonSchema = zodToJsonSchema(schema, {
-        target: "jsonSchema7",
-        strictUnions: false,
-        definitions: {}
-      });
-      this.fixSchemaTypes(jsonSchema);
-      return jsonSchema;
+      return schemaAny.shape;
     }
     
     // Handle other nested structures
@@ -369,18 +361,8 @@ export class ToolRegistry {
       return this.extractSchemaShape(schemaAny._def.schema);
     }
     
-    // Fallback to the original approach with ADK fix
+    // Fallback to the original approach - return raw shape for VS Code/Claude Desktop
     const shape = schemaAny._def?.schema?.shape || schemaAny.shape;
-    if (shape) {
-      const jsonSchema = zodToJsonSchema(schema, {
-        target: "jsonSchema7",
-        strictUnions: false,
-        definitions: {}
-      });
-      this.fixSchemaTypes(jsonSchema);
-      return jsonSchema;
-    }
-    
     return shape;
   }
 

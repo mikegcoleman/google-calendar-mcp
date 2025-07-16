@@ -169,7 +169,7 @@ describe('Schema Compatibility', () => {
     for (const tool of tools) {
       if (toolsWithDateTimeFields.includes(tool.name)) {
         // These tools should exist and be properly typed
-        expect(tool.inputSchema.type).toBe('object');
+        expect((tool.inputSchema as any).type).toBe('object');
       }
     }
   });

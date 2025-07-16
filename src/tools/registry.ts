@@ -277,10 +277,12 @@ interface ToolDefinition {
 
 export class ToolRegistry {
   /**
-   * Fix schema type capitalization for ADK compatibility
+   * Fix schema type capitalization and other issues for ADK compatibility
    * ADK expects JSON schema with single lowercase types (e.g., "string","object"), not uppercase or arrays.
+   * Also removes unsupported schema properties that ADK doesn't understand.
    */
   private static fixSchemaTypes(schema: any): void {
+    // Fix type capitalization and array types
     if (Array.isArray(schema.type)) {
       // Take the first type (e.g., "object", ignore null)
       schema.type = schema.type.find((t: string) => t !== 'null') || schema.type[0];
@@ -289,6 +291,35 @@ export class ToolRegistry {
       schema.type = schema.type.toLowerCase();
     }
 
+    // Remove unsupported keys that ADK doesn't understand
+    const unsupportedKeys = [
+      'examples', 
+      'nullable', 
+      'default', 
+      'format',
+      '$schema',
+      'definitions',
+      'additionalProperties',
+      'anyOf',
+      'oneOf',
+      'allOf',
+      'not',
+      'if',
+      'then',
+      'else'
+    ];
+    
+    for (const key of unsupportedKeys) {
+      delete schema[key];
+    }
+
+    // Handle enum values - ensure they're simple arrays
+    if (schema.enum && Array.isArray(schema.enum)) {
+      // Keep enum as-is but ensure it's a simple array
+      schema.enum = schema.enum.filter((val: any) => typeof val === 'string' || typeof val === 'number');
+    }
+
+    // Recursively fix nested schemas
     if (schema.properties) {
       for (const key in schema.properties) {
         this.fixSchemaTypes(schema.properties[key]);
@@ -296,6 +327,19 @@ export class ToolRegistry {
     }
     if (schema.items) {
       this.fixSchemaTypes(schema.items);
+    }
+
+    // Handle patternProperties (convert to properties if possible)
+    if (schema.patternProperties) {
+      delete schema.patternProperties;
+    }
+
+    // Ensure required is a simple array of strings
+    if (schema.required && Array.isArray(schema.required)) {
+      schema.required = schema.required.filter((val: any) => typeof val === 'string');
+      if (schema.required.length === 0) {
+        delete schema.required;
+      }
     }
   }
 

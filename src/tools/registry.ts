@@ -309,7 +309,15 @@ export class ToolRegistry {
     
     // Handle regular ZodObject
     if ('shape' in schemaAny) {
-      return schemaAny.shape;
+      const shape = schemaAny.shape;
+      // Apply ADK compatibility fix by converting to JSON Schema and back
+      const jsonSchema = zodToJsonSchema(schema, {
+        target: "jsonSchema7",
+        strictUnions: false,
+        definitions: {}
+      });
+      this.fixSchemaTypes(jsonSchema);
+      return jsonSchema;
     }
     
     // Handle other nested structures
@@ -317,8 +325,19 @@ export class ToolRegistry {
       return this.extractSchemaShape(schemaAny._def.schema);
     }
     
-    // Fallback to the original approach
-    return schemaAny._def?.schema?.shape || schemaAny.shape;
+    // Fallback to the original approach with ADK fix
+    const shape = schemaAny._def?.schema?.shape || schemaAny.shape;
+    if (shape) {
+      const jsonSchema = zodToJsonSchema(schema, {
+        target: "jsonSchema7",
+        strictUnions: false,
+        definitions: {}
+      });
+      this.fixSchemaTypes(jsonSchema);
+      return jsonSchema;
+    }
+    
+    return shape;
   }
 
   private static tools: ToolDefinition[] = [

@@ -422,23 +422,31 @@ export class ToolRegistry {
         // Provide default calendarId if not specified
         let processedCalendarId: string | string[] = args.calendarId || "primary";
         
-        // Provide default date filtering for today if no time boundaries specified
+        // For ADK: Provide intelligent default date ranges ONLY when user provides no time boundaries
+        // Respect any user-specified time ranges exactly as provided
         let timeMin = args.timeMin;
         let timeMax = args.timeMax;
         
-        if (!timeMin || !timeMax) {
+        // Only apply defaults when BOTH timeMin AND timeMax are missing
+        // If user specifies either one, they have a specific intent and we should not override
+        if (!timeMin && !timeMax) {
           const now = new Date();
-          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const todayEnd = new Date(todayStart);
-          todayEnd.setDate(todayEnd.getDate() + 1);
-          todayEnd.setMilliseconds(todayEnd.getMilliseconds() - 1);
           
-          if (!timeMin) {
-            timeMin = todayStart.toISOString().slice(0, 19); // Remove Z for calendar timezone
-          }
-          if (!timeMax) {
-            timeMax = todayEnd.toISOString().slice(0, 19); // Remove Z for calendar timezone
-          }
+          // Default to showing events for "today and the next few days" - a 7-day window
+          // This provides context when user makes general requests like "show my events"
+          const rangeStart = new Date(now);
+          rangeStart.setHours(0, 0, 0, 0); // Start of today
+          
+          const rangeEnd = new Date(now);
+          rangeEnd.setDate(rangeEnd.getDate() + 7); // Next 7 days
+          rangeEnd.setHours(23, 59, 59, 999);
+          
+          timeMin = rangeStart.toISOString().slice(0, 19); // Remove Z for calendar timezone
+          timeMax = rangeEnd.toISOString().slice(0, 19); // Remove Z for calendar timezone
+          
+          console.log(`[ListEvents] Using default 7-day range: ${timeMin} to ${timeMax}`);
+        } else if (timeMin || timeMax) {
+          console.log(`[ListEvents] Using user-specified time range: ${timeMin || 'no start'} to ${timeMax || 'no end'}`);
         }
         
         // Handle case where calendarId is passed as a JSON string
@@ -651,15 +659,15 @@ export class ToolRegistry {
             },
             timeMin: {
               type: "string",
-              description: "Start time boundary in ISO 8601 format: '2024-01-01T10:00:00'"
+              description: "Start time boundary in ISO 8601 format: '2024-01-01T10:00:00'. If not provided, defaults to today."
             },
             timeMax: {
               type: "string", 
-              description: "End time boundary in ISO 8601 format: '2024-01-01T23:59:59'"
+              description: "End time boundary in ISO 8601 format: '2024-01-01T23:59:59'. If not provided, defaults to 7 days from today."
             },
             timeZone: {
               type: "string",
-              description: "Timezone as IANA Time Zone Database name (e.g., America/Los_Angeles)"
+              description: "Timezone as IANA Time Zone Database name (e.g., America/Los_Angeles). Uses calendar's default timezone if not provided."
             }
           }
         };
